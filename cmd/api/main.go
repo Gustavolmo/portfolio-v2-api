@@ -4,7 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gustavolmo/portfolio-v2-api/internal/health"
+	health "github.com/gustavolmo/portfolio-v2-api/internal/health"
+	observe "github.com/gustavolmo/portfolio-v2-api/internal/observe"
 )
 
 var allowedOrigins = map[string]bool{
@@ -36,6 +37,7 @@ func main() {
 	router := http.NewServeMux()
 
 	router.HandleFunc("GET /health", health.Hanlder)
+	router.HandleFunc("GET /observe", observe.Hanlder)
 
 	log.Println("Server running on http://localhost:8080")
 
