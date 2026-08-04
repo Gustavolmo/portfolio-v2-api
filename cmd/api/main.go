@@ -6,6 +6,7 @@ import (
 
 	health "github.com/gustavolmo/portfolio-v2-api/internal/health"
 	observe "github.com/gustavolmo/portfolio-v2-api/internal/observe"
+	email "github.com/gustavolmo/portfolio-v2-api/internal/email"
 )
 
 var allowedOrigins = map[string]bool{
@@ -38,6 +39,7 @@ func main() {
 
 	router.HandleFunc("GET /health", health.Hanlder)
 	router.HandleFunc("GET /observe", observe.Hanlder)
+	router.HandleFunc("POST /email", email.Hanlder)
 
 	log.Println("Server running on http://localhost:8080")
 
