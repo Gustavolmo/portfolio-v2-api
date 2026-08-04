@@ -4,13 +4,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync/atomic"
 	"time"
 )
 
 type Status struct {
-	ConnectedClients int64 `json:"connectedClients"`
-	UptimeSeconds    int64 `json:"uptimeSeconds"`
+	UptimeSeconds    int64  `json:"uptimeSeconds"`
+	ConnectedClients int64  `json:"connectedClients"`
+	Goroutines       int    `json:"goroutines"`
+	HeapAllocated    uint64 `json:"heapAllocatedBytes"`
+	HeapInUse        uint64 `json:"heapInUseBytes"`
+	HeapObjects      uint64 `json:"heapObjects"`
+	SystemMemory     uint64 `json:"systemMemoryBytes"`
+	GCCycles         uint32 `json:"gcCycles"`
+	LastGCPause      uint64 `json:"lastGcPauseNanoseconds"`
+	GoVersion        string `json:"goVersion"`
+	CPUCount         int    `json:"cpuCount"`
 }
 
 var connectedClients atomic.Int64
@@ -65,8 +75,27 @@ func send(w http.ResponseWriter, flusher http.Flusher) error {
 }
 
 func snapshot() Status {
+	var memory runtime.MemStats
+	runtime.ReadMemStats(&memory)
+
+	var lastGCPause uint64
+
+	if memory.NumGC > 0 {
+		index := (memory.NumGC + 255) % 256
+		lastGCPause = memory.PauseNs[index]
+	}
+
 	return Status{
 		UptimeSeconds:    int64(time.Since(startedAt).Seconds()),
 		ConnectedClients: connectedClients.Load(),
+		Goroutines:       runtime.NumGoroutine(),
+		HeapAllocated:    memory.HeapAlloc,
+		HeapInUse:        memory.HeapInuse,
+		HeapObjects:      memory.HeapObjects,
+		SystemMemory:     memory.Sys,
+		GCCycles:         memory.NumGC,
+		LastGCPause:      lastGCPause,
+		GoVersion:        runtime.Version(),
+		CPUCount:         runtime.NumCPU(),
 	}
 }
