@@ -3,6 +3,8 @@ package email
 import (
 	"net"
 	"net/http"
+	"net/netip"
+	"strings"
 	"sync"
 
 	"golang.org/x/time/rate"
@@ -38,6 +40,13 @@ func (r *RateLimiter) Allow(ip string) bool {
 }
 
 func ClientIP(r *http.Request) (string, error) {
+	if forwardedFor := r.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+		first, _, _ := strings.Cut(forwardedFor, ",")
+		if address, err := netip.ParseAddr(strings.TrimSpace(first)); err == nil {
+			return address.String(), nil
+		}
+	}
+
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return "", err

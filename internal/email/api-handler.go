@@ -24,40 +24,44 @@ const MAX_PAYLOAD_BYTES = 16 << 10
 var requestLimiter = NewRateLimiter(rate.Every(30*time.Second), 3)
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, MAX_PAYLOAD_BYTES)
-	defer r.Body.Close()
-
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	ip, err := ClientIP(r)
-	if err != nil {
-		http.Error(w, "invalid remote address", http.StatusBadRequest)
-		return
-	}
-
-	if !requestLimiter.Allow(ip) {
-		w.Header().Set("Retry-After", "3600")
-		http.Error(w, "too many requests, server cap reached, please try again soon", http.StatusTooManyRequests)
-		return
-	}
-
-	payload, err, status := validatePayload(r.Body)
+	err, status := SendEmail(w, r, SMTPSender{})
 	if err != nil {
 		http.Error(w, err.Error(), status)
 		return
 	}
 
-	transport := SMTPSender{}
-	if err := transport.Send(BuildMessage(payload), []string{FROM_EMAIL, TO_EMAIL}); err != nil {
-		http.Error(w, "Unable to send email right now", http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+}
+
+func SendEmail(w http.ResponseWriter, r *http.Request, transport Sender) (error, int) {
+	r.Body = http.MaxBytesReader(w, r.Body, MAX_PAYLOAD_BYTES)
+	defer r.Body.Close()
+
+	if r.Method != http.MethodPost {
+		return fmt.Errorf("method not allowed"), http.StatusMethodNotAllowed
+	}
+
+	ip, err := ClientIP(r)
+	if err != nil {
+		return fmt.Errorf("invalid remote address"), http.StatusBadRequest
+	}
+
+	if !requestLimiter.Allow(ip) {
+		w.Header().Set("Retry-After", "3600")
+		return fmt.Errorf("too many requests, server cap reached, please try again soon"), http.StatusTooManyRequests
+	}
+
+	payload, err, status := validatePayload(r.Body)
+	if err != nil {
+		return err, status
+	}
+
+	if err := transport.Send(BuildMessage(payload), []string{FROM_EMAIL, TO_EMAIL}); err != nil {
+		return fmt.Errorf("Unable to send email right now"), http.StatusInternalServerError
+	}
+
+	return nil, 0
 }
 
 func validatePayload(body io.ReadCloser) (emailPayload, error, int) {
