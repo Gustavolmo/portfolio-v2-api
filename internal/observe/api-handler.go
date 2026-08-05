@@ -11,7 +11,7 @@ import (
 
 type Status struct {
 	UptimeSeconds    int64  `json:"uptimeSeconds"`
-	ConnectedClients int64  `json:"connectedClients"`
+	ConnectedClients int32  `json:"connectedClients"`
 	Goroutines       int    `json:"goroutines"`
 	HeapAllocated    uint64 `json:"heapAllocatedBytes"`
 	HeapInUse        uint64 `json:"heapInUseBytes"`
@@ -23,17 +23,24 @@ type Status struct {
 	CPUCount         int    `json:"cpuCount"`
 }
 
-var connectedClients atomic.Int64
+const maxSSEConnections int32 = 64
+
+var connectedClients atomic.Int32
 var startedAt = time.Now()
 
-func Hanlder(w http.ResponseWriter, r *http.Request) {
+func Handler(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
-	connectedClients.Add(1)
+	if !acquireSSEConnection() {
+		w.Header().Set("Retry-After", "30")
+		http.Error(w, "observation capacity reached", http.StatusServiceUnavailable)
+		return
+	}
+
 	defer connectedClients.Add(-1)
 
 	ticker := time.NewTicker(1 * time.Second)
@@ -97,5 +104,19 @@ func snapshot() Status {
 		LastGCPause:      lastGCPause,
 		GoVersion:        runtime.Version(),
 		CPUCount:         runtime.NumCPU(),
+	}
+}
+
+func acquireSSEConnection() bool {
+	for {
+		current := connectedClients.Load()
+
+		if current >= maxSSEConnections {
+			return false
+		}
+
+		if connectedClients.CompareAndSwap(current, current+1) {
+			return true
+		}
 	}
 }

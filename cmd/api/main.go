@@ -4,14 +4,14 @@ import (
 	"log"
 	"net/http"
 
+	email "github.com/gustavolmo/portfolio-v2-api/internal/email"
 	health "github.com/gustavolmo/portfolio-v2-api/internal/health"
 	observe "github.com/gustavolmo/portfolio-v2-api/internal/observe"
-	email "github.com/gustavolmo/portfolio-v2-api/internal/email"
 )
 
 var allowedOrigins = map[string]bool{
-	"http://localhost:5173":                              true,
-	"https://gustavolmo.github.io/react-window-manager/": true,
+	"http://localhost:5173":        true,
+	"https://gustavolmo.github.io": true,
 }
 
 func cors(next http.Handler) http.Handler {
@@ -37,9 +37,9 @@ func cors(next http.Handler) http.Handler {
 func main() {
 	router := http.NewServeMux()
 
-	router.HandleFunc("GET /health", health.Hanlder)
-	router.HandleFunc("GET /observe", observe.Hanlder)
-	router.HandleFunc("POST /email", email.Hanlder)
+	router.HandleFunc("GET /health", health.Handler)
+	router.HandleFunc("GET /observe", observe.Handler)
+	router.HandleFunc("POST /email", email.Handler)
 
 	log.Println("Server running on http://localhost:8080")
 
